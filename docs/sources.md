@@ -3,14 +3,18 @@
 > 实测时间：2026-11-17。工具：`scripts/probe_source.py`（探路径与编码）、`scripts/list_structure.py`（看列表结构、推选择器）。
 > 结论会变——厦大站点改版后要重跑这两个脚本。
 
-## 一、当前 4 个源
+## 一、当前 4 个源（都已实测）
 
-| # | id | 源 | 地址 | 渲染方式 | item_selector | 状态 |
-|---|---|---|---|---|---|---|
-| 1 | `jwc` | 教务处 | https://jwc.xmu.edu.cn/tzgg.htm | 服务端 | `li.news`（15 条） | ✅ 可直接抓 |
-| 2 | `tw` | 校团委 | https://tw.xmu.edu.cn/tzgg.htm | 服务端 | `div.col-md-9.col-sm-9.col-xs-9`（15 条） | ✅ 可直接抓 |
-| 3 | `xaxq` | 翔安校区 | https://xaxq.xmu.edu.cn/xqdt/tzgg.htm | 服务端 | `div.news-list-title`（15 条） | ✅ 可直接抓 |
-| 4 | `informatics` | 信息学院 | https://informatics.xmu.edu.cn/news_events/tzgg.htm | **Vue 动态** | —— | ❌ 静态抓不到 |
+| # | id | 源 | 地址 | 渲染方式 | item_selector | 命中 | 状态 |
+|---|---|---|---|---|---|---|---|
+| 1 | `jwc` | 教务处 | https://jwc.xmu.edu.cn/tzgg.htm | 服务端 | `li.news` | 15 条 | ✅ |
+| 2 | `xsc` | 学生工作部 | https://xsc.xmu.edu.cn/ | 服务端 | `div.tzgg-item-title` | 8 条 | ✅ |
+| 3 | `tw` | 校团委 | https://tw.xmu.edu.cn/tzgg.htm | 服务端 | `div.col-md-9.col-sm-9.col-xs-9` | 15 条 | ✅ |
+| 4 | `xaxq` | 翔安校区 | https://xaxq.xmu.edu.cn/xqdt/tzgg.htm | 服务端 | `div.news-list-title` | 15 条 | ✅ |
+| — | `informatics` | 信息学院 | https://informatics.xmu.edu.cn/news_events/tzgg.htm | **Vue 动态** | —— | 0 条 | ❌ 待 V2 |
+
+`xsc`（学生工作部）覆盖**奖学金、助学金、评优、资助、医保卡**——大二最容易错过的那一类，比学院新闻更该抓。
+`xaxq`（翔安校区）覆盖停水停电、班车、场馆、校区服务指南，信息学院就在翔安。
 
 ## 二、信息学院为什么抓不到（实测记录）
 

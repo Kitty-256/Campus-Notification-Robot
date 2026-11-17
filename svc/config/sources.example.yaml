@@ -1,12 +1,13 @@
 # 信息源配置：改这里就等于接入新源，不用改代码。
 #
-# 实测状态（2026-11-17，用 scripts/list_structure.py 验证）：
-#   jwc          服务端渲染 OK   li.news 命中 15 条
-#   tw           服务端渲染 OK   div.col-md-9... 命中 15 条
-#   xaxq         服务端渲染 OK   div.news-list-title 命中 15 条
-#   informatics  NO  Vue 动态渲染：HTML 里只有导航链接，0 条文章（/tzgg.htm 本身 404）
-#                真实栏目是 /news_events/tzgg.htm 和 /xszx/announces.htm，但都是空壳
-#                -> 要抓只能上 Playwright（V2），或以后扒它的 axios 接口
+# 实测状态（2026-11-17，用 scripts/list_structure.py --sel= 验证）：
+#   jwc    教务处      服务端渲染 OK   li.news                 命中 15 条
+#   xsc    学生工作部   服务端渲染 OK   div.tzgg-item-title      命中  8 条（首页通知区）
+#   tw     校团委      服务端渲染 OK   div.col-md-9.col-sm-9.col-xs-9  命中 15 条
+#   xaxq   翔安校区    服务端渲染 OK   div.news-list-title      命中 15 条
+#   informatics 信息学院  NO  Vue 动态渲染，HTML 里 0 篇文章（/tzgg.htm 本身 404）
+#               真实栏目 /news_events/tzgg.htm、/xszx/announces.htm 都是空壳
+#               -> 要抓只能上 Playwright（V2），配置先留着
 #
 # 字段：id / list_url / item_selector / content_selector / encoding / kind / detail_limit
 # 只选「通知公告」类栏目，不要选「新闻/学院动态」——新闻没有可行动价值。
@@ -20,6 +21,15 @@
   detail_limit: 6
   enabled: true
 
+# 学生工作部：奖学金、助学金、评优、资助、医保卡——大二最常错过的那类通知在这
+- id: xsc
+  list_url: https://xsc.xmu.edu.cn/
+  item_selector: div.tzgg-item-title
+  encoding: utf-8
+  kind: html
+  detail_limit: 4
+  enabled: true
+
 - id: tw
   list_url: https://tw.xmu.edu.cn/tzgg.htm
   item_selector: div.col-md-9.col-sm-9.col-xs-9
@@ -28,7 +38,7 @@
   detail_limit: 6
   enabled: true
 
-# 翔安校区通知（信息学院在这边，停水停电/班车/场馆类信息也在这里）
+# 翔安校区：信息学院在这边，停水停电、班车、场馆、校区服务指南
 - id: xaxq
   list_url: https://xaxq.xmu.edu.cn/xqdt/tzgg.htm
   item_selector: div.news-list-title
@@ -37,7 +47,7 @@
   detail_limit: 4
   enabled: true
 
-# ---- 信息学院：先留着，等 V2 上 Playwright 再打开 ----
+# ---- 信息学院：等 V2 上 Playwright 再打开 ----
 - id: informatics
   list_url: https://informatics.xmu.edu.cn/news_events/tzgg.htm
   item_selector: div.news-list-title      # 仅占位：该页是 Vue 渲染，静态抓不到
@@ -46,17 +56,10 @@
   detail_limit: 0
   enabled: false
 
-# ---- 备选（实测后按需打开）----
-# 图书馆·新闻公告（服务端渲染，但容器结构较乱，需要手动挑选择器）
-# - id: lib
-#   list_url: https://library.xmu.edu.cn/gybg/bggk/xwgg.htm
-#   item_selector: li
-#   encoding: utf-8
-#   kind: html
-#   detail_limit: 4
-#   enabled: false
-#
-# 就业中心（jy.xmu.edu.cn）：首页 200，但 /news/index/tag/xqxx 也是 JS 加载，抓不到列表
+# ---- 备选 ----
+# 图书馆·新闻公告：服务端渲染，但容器结构乱（li 命中 42 条含导航），要用得手挑选择器
+# 就业中心 jy.xmu.edu.cn：首页 200，但 /news/index/tag/xqxx 也是 JS 加载
+# 研究生院 gs.xmu.edu.cn：对本科低年级价值后置，需要时加一段即可
 #
 # 站上本来就有 RSS 的，用 rss 类型最省事（连选择器都不用写）
 # - id: xmu_rss
