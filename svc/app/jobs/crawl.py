@@ -8,7 +8,7 @@ import random
 import time
 
 from .. import db
-from ..collect import generic, rss
+from ..collect import browser, generic, rss
 from ..pipeline import ingest, process_pending
 from ..settings import settings
 
@@ -42,7 +42,13 @@ def crawl_all() -> dict:
     for src in load_sources():
         sid = src["id"]
         try:
-            items = rss.collect(src) if src.get("kind") == "rss" else generic.collect(src)
+            kind = src.get("kind", "html")
+            if kind == "rss":
+                items = rss.collect(src)
+            elif kind == "browser":
+                items = browser.collect(src)
+            else:
+                items = generic.collect(src)
             got = ingest(items)
             db.log_fetch(sid, True, len(items))
             result["sources"].append({"id": sid, "n": len(items), "ok": True,

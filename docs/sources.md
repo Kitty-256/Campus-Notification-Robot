@@ -3,18 +3,28 @@
 > 实测时间：2026-11-17。工具：`scripts/probe_source.py`（探路径与编码）、`scripts/list_structure.py`（看列表结构、推选择器）。
 > 结论会变——厦大站点改版后要重跑这两个脚本。
 
-## 一、当前 4 个源（都已实测）
+## 一、当前 4 个源
 
-| # | id | 源 | 地址 | 渲染方式 | item_selector | 命中 | 状态 |
+| # | id | 源 | 地址 | 渲染方式 | 选择器 / 方式 | 实测 | 状态 |
 |---|---|---|---|---|---|---|---|
 | 1 | `jwc` | 教务处 | https://jwc.xmu.edu.cn/tzgg.htm | 服务端 | `li.news` | 15 条 | ✅ |
 | 2 | `xsc` | 学生工作部 | https://xsc.xmu.edu.cn/ | 服务端 | `div.tzgg-item-title` | 8 条 | ✅ |
 | 3 | `tw` | 校团委 | https://tw.xmu.edu.cn/tzgg.htm | 服务端 | `div.col-md-9.col-sm-9.col-xs-9` | 15 条 | ✅ |
-| 4 | `xaxq` | 翔安校区 | https://xaxq.xmu.edu.cn/xqdt/tzgg.htm | 服务端 | `div.news-list-title` | 15 条 | ✅ |
-| — | `informatics` | 信息学院 | https://informatics.xmu.edu.cn/news_events/tzgg.htm | **Vue 动态** | —— | 0 条 | ❌ 待 V2 |
+| 4 | `informatics` | 信息学院 | https://informatics.xmu.edu.cn/news_events/tzgg.htm | **Vue 动态** | `kind: browser`（无头 Chromium 渲染后取链接） | 需 playwright | ⚠️ 待装依赖 |
 
-`xsc`（学生工作部）覆盖**奖学金、助学金、评优、资助、医保卡**——大二最容易错过的那一类，比学院新闻更该抓。
-`xaxq`（翔安校区）覆盖停水停电、班车、场馆、校区服务指南，信息学院就在翔安。
+备选：翔安校区（`xaxq`，服务端渲染，15 条）、图书馆（结构较乱）、就业中心（JS）。切换只需改 YAML 的 `enabled`。
+
+## 一·补、信息学院为什么要用浏览器
+
+| 检查 | 结果 |
+|---|---|
+| `https://informatics.xmu.edu.cn/tzgg.htm` | HTTP 404（会跳首页，就是「打开没问题」但地址错的那个） |
+| `https://informatics.xmu.edu.cn/news_events/tzgg.htm` | 200，浏览器里显示正常 |
+| 该页静态 HTML | 137 个 `<a>`，**0 条文章**；`wbnewsid` 出现 0 次；引了 vue.js / axios.js / aop_component |
+| 页面里的列表组件 | `#appu6` + Vue，数据由 `/aop_component/` 请求后注入（无公开文档、参数带 owner token） |
+
+**结论**：浏览器能打开 ≠ 程序能抓到。程序不执行 JS，所以必须用 `kind: browser` 让无头 Chromium 跑一遍。
+这正是手册里 T1/T2 分档的意义——信息学院是 T2。
 
 ## 二、信息学院为什么抓不到（实测记录）
 

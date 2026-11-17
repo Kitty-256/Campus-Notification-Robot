@@ -41,6 +41,13 @@ notice-daily/
 - 已有的 AstrBot + SnowLuma 容器正在跑（`docker ps` 能看到）
 - Docker Desktop（可选，纯 Python 跑也行）
 - Python 3.10+
+- **可选**：要抓信息学院（Vue 渲染的站点）需要 playwright；不装则该源被跳过，其它源照常
+
+```powershell
+# 需要信息学院时再装（~400MB）
+pip install -r svc\requirements-browser.txt
+playwright install chromium --with-deps
+```
 
 ### 1. 确认网络
 

@@ -83,8 +83,8 @@ def process_pending(limit: int = 50) -> dict:
     for row in rows:
         item = dict(row)
         content = item.get("content") or ""
-        if len(content) < MIN_CONTENT_LEN:
-            # 正文太短：多为图片型正文或纯附件通知，标 review 但仍入库
+        if len(content) < MIN_CONTENT_LEN and len(item["title"]) < 10:
+            # 正文空、标题也短：多半是「更多>>」「闭馆通知」这类，不值得生成
             execute("UPDATE raw_items SET processed=1, note='short_content' WHERE id=?",
                     (item["id"],))
             dropped += 1
@@ -104,8 +104,13 @@ def process_pending(limit: int = 50) -> dict:
                     (f"dup_of_cluster_{cluster_id}", item["id"]))
             continue
 
-        # ---- 摘要（LLM 或降级）
-        data = summarize(item["title"], content, item["url"], item["source"])
+        # ---- 摘要：正文为空/过短时不调模型（会诱发编造），直接用标题降级
+        title_only = len(content) < MIN_CONTENT_LEN
+        if title_only:
+            from .llm import fallback_summary
+            data = fallback_summary(item["title"], content)
+        else:
+            data = summarize(item["title"], content, item["url"], item["source"])
 
         deadline = data.get("deadline") or find_deadline(content)
         tags = data.get("tags") or guess_tags(item["title"], content)
@@ -126,7 +131,8 @@ def process_pending(limit: int = 50) -> dict:
              item["url"], score, float(data.get("confidence") or 0), status, now_str()),
         )
         execute("UPDATE notices SET cluster_id=? WHERE id=?", (nid, nid))
-        execute("UPDATE raw_items SET processed=1 WHERE id=?", (item["id"],))
+        execute("UPDATE raw_items SET processed=1, note=? WHERE id=?",
+                ("title_only" if title_only else None, item["id"]))
         recent.append({"id": nid, "cluster_id": nid, "title": item["title"],
                        "created_at": now_str()})
         created += 1

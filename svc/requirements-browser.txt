@@ -1,0 +1,7 @@
+# 浏览器渲染采集器（信息学院等 JS 站点）用的可选依赖
+# 安装：
+#   pip install -r requirements.txt -r requirements-browser.txt
+#   playwright install chromium --with-deps
+#
+# 不装也能跑：kind: browser 的源会被跳过并打警告，其它源照常工作。
+playwright>=1.44
