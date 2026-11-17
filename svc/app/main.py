@@ -52,13 +52,23 @@ async def _scheduler() -> None:
 
 
 def _ensure_sources_file() -> None:
-    """首次启动时把示例源配置复制成正式配置，免得一上来就报找不到文件。"""
+    """首次启动时把示例源配置复制成正式配置，免得一上来就报找不到文件。
+
+    之后只认「正式配置」；改 example 不会自动生效（防误覆盖），但会打一条警告。
+    """
     from pathlib import Path
     target = Path(settings.sources_file)
+    example = BASE_DIR / "config" / "sources.example.yaml"
     if target.exists():
+        try:
+            if example.exists() and example.stat().st_mtime > target.stat().st_mtime + 1:
+                log.warning(
+                    "源配置可能过期：%s 比 %s 新。改完示例后删掉后者即可重新生成。",
+                    example, target)
+        except OSError:
+            pass
         return
     target.parent.mkdir(parents=True, exist_ok=True)
-    example = BASE_DIR / "config" / "sources.example.yaml"
     if example.exists():
         target.write_text(example.read_text(encoding="utf-8"), encoding="utf-8")
         log.info("已从示例生成源配置：%s", target)
