@@ -33,10 +33,45 @@
 - [ ] Step 4：`/ingest` 塞假数据 → `/api/admin/process` → `/api/digest` 有数据
 - [ ] Step 4b：插件装进 AstrBot，群里 `/绑定推送` 拿到 umo
 - [ ] Step 4c：`/今日` 在群里返回内容（第一条端到端消息）
-- [ ] Step 5：实测 jwc 列表页地址与选择器，把 `sources.yaml` 的 `enabled` 打开
-- [ ] Step 6~9：其余 3 个源
+- [ ] Step 5：`/api/admin/crawl` 抓真实数据（教务/学工部/团委 三个 html 源应直接可用）
+- [ ] Step 5b：装 playwright（可选）后验证信息学院的 browser 源
 - [ ] Step 14：配 `LLM_API_KEY`，跑通真摘要
 - [ ] Step 26~29：标注集 + 两组实验 + 7 天连续运行
+
+## 断点：明天从这里开始
+
+**开工前**：开一个 PowerShell，`cd D:\校园通知小助手\notice-daily`，然后按顺序：
+
+```powershell
+# 1) 确认 Docker 在（SnowLuma / AstrBot 都靠它）
+docker ps
+
+# 2) 配置
+Copy-Item .env.example .env
+notepad .env                                  # 至少把 ADMIN_TOKEN 改掉
+
+# 3) 起服务（二选一）
+docker compose up -d --build                  # A. 有 Docker
+# 或
+cd svc; python -m venv .venv; .\.venv\Scripts\pip install -r requirements.txt
+.\.venv\Scripts\python -m uvicorn app.main:app --port 8000
+
+# 4) 冒烟
+curl http://127.0.0.1:8000/healthz
+curl -X POST http://127.0.0.1:8000/api/admin/crawl -H "X-Admin-Token: change-me"
+curl "http://127.0.0.1:8000/api/digest?limit=10"
+```
+
+**判断成功的标准**：第 3 条命令能返回带真实标题的 JSON（教务/学工部/团委 三源）。
+拿到之后再把插件拷进 AstrBot、群里 `/绑定推送` + `/今日`。
+
+**如果起不来**：把报错贴给 AI，并同时说明「你是 Docker 还是本地 Python」——两者的排查路径完全不同。
+
+## 明天要先解决的三个未知数
+
+1. **Docker 到底有没有**（当前 PATH 里没有；这台机器可能没装 Docker Desktop）
+2. **真实抓取能不能过**：3 个 html 源的选择器已实测，但 `generic.collect()` 首次跑真实站点的编码/详情页可能还要微调
+3. **plugins 装进 AstrBot 后能不能拿到 umo**（`/绑定推送` 一步）
 
 ## 已知风险
 
