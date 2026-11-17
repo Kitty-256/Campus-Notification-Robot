@@ -1,0 +1,44 @@
+# 信息源配置：改这里就等于接入新源，不用改代码。
+# 字段说明：
+#   id               源标识（会出现在日报与统计里）
+#   list_url         列表页地址
+#   item_selector    列表条目的 CSS 选择器（先 F12 看结构再填）
+#   content_selector 详情页正文容器（留空则用通用抽取）
+#   encoding         gbk / utf-8 / auto
+#   kind             html | rss
+#   detail_limit     每轮最多抓几个详情页（控制请求量）
+#
+# ⚠ 下面的 list_url 与选择器都是「待实测」的初始值：第一次跑起来后
+#   按 README「调选择器」一节逐个核对，改到能拿到正确标题为止。
+
+- id: jwc
+  list_url: https://jwc.xmu.edu.cn/tzgg.htm
+  item_selector: ul.news_list li
+  content_selector: .v_news_content
+  encoding: gbk
+  kind: html
+  detail_limit: 6
+  enabled: false          # 实测通过后改成 true
+
+- id: gs
+  list_url: https://gs.xmu.edu.cn/tzgg.htm
+  item_selector: div.list li
+  encoding: utf-8
+  kind: html
+  detail_limit: 6
+  enabled: false
+
+- id: informatics
+  list_url: https://informatics.xmu.edu.cn/tzgg.htm
+  item_selector: ul.news_list li
+  encoding: utf-8
+  kind: html
+  detail_limit: 6
+  enabled: false
+
+# 第四个源：如果站上有 RSS，就直接用 rss 类型，最省事
+# - id: xmu_rss
+#   list_url: http://127.0.0.1:1200/xmu/xxx
+#   kind: rss
+#   limit: 20
+#   enabled: true

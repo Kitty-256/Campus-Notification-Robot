@@ -1,0 +1,27 @@
+{
+  "svc_base": {
+    "type": "string",
+    "description": "notice-svc 地址（同 docker 网络时用容器名）",
+    "default": "http://notice-svc:8000"
+  },
+  "push_time": {
+    "type": "string",
+    "description": "每日推送时间 HH:MM（24 小时制）",
+    "default": "07:30"
+  },
+  "push_umo": {
+    "type": "string",
+    "description": "日报推送目标会话 UMO（在群里发 /绑定推送 自动写入，勿手抄）",
+    "default": ""
+  },
+  "bot_uin": {
+    "type": "string",
+    "description": "机器人 QQ 号（合并转发卡片显示用，可留空）",
+    "default": ""
+  },
+  "admin_qq": {
+    "type": "string",
+    "description": "管理员 QQ，可用 /绑定推送",
+    "default": ""
+  }
+}

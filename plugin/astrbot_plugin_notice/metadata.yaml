@@ -1,0 +1,5 @@
+name: astrbot_plugin_notice
+desc: 校园通知日报：聚合厦大各站点通知，AI 摘要去重，每日推送到群
+version: v1.0.0
+author: xmu-ai-team
+repo: https://github.com/your-group/notice-daily

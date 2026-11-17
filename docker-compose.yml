@@ -1,0 +1,42 @@
+services:
+  notice-svc:
+    build: ./svc
+    container_name: notice-svc
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./data:/data
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - botnet
+
+  # 可选：需要 RSS 源时启用 —— docker compose --profile rss up -d
+  rsshub:
+    image: diygod/rsshub:latest
+    container_name: rsshub
+    restart: unless-stopped
+    profiles: ["rss"]
+    environment:
+      - NODE_ENV=production
+      - CACHE_TYPE=memory
+      - TZ=Asia/Shanghai
+    ports:
+      - "1200:1200"
+    networks:
+      - botnet
+
+networks:
+  # 必须和 AstrBot / SnowLuma 所在的网络同名，否则插件调不到服务
+  botnet:
+    external: true
+    name: botnet
