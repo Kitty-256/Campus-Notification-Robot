@@ -2,14 +2,18 @@
 
 ## 当前清单（4 个）
 
-| # | id | 地址（需实测） | 类型 | 状态 |
-|---|---|---|---|---|
-| 1 | jwc | https://jwc.xmu.edu.cn/tzgg.htm | 静态列表页 / gbk | 待实测 |
-| 2 | gs | https://gs.xmu.edu.cn/tzgg.htm | 静态列表页 | 待实测 |
-| 3 | informatics | https://informatics.xmu.edu.cn/tzgg.htm | 静态 / 可能 JS | 待实测 |
-| 4 | 待定（团委/图书馆/就业） | — | 优先找 RSS | 待定 |
+| # | id | 源 | 地址（需实测） | 类型 | 状态 |
+|---|---|---|---|---|---|
+| 1 | jwc | 教务处 | https://jwc.xmu.edu.cn/tzgg.htm | 静态列表页 / gbk | 待实测 |
+| 2 | informatics | 信息学院 | https://informatics.xmu.edu.cn/tzgg.htm | 静态 / 可能 JS | 待实测 |
+| 3 | tw | 校团委 | https://tw.xmu.edu.cn/tzgg.htm | 静态列表页 | 待实测 |
+| 4 | job / lib | 就业中心（优先）/ 图书馆 | 见 sources.example.yaml 注释 | 优先找 RSS | 待定 |
 
 > 上表地址只是**初始猜测**。第一件事是打开浏览器逐条核实栏目路径（`tzgg.htm` / `tzgg/` / `index.htm` 都可能）。
+> 只选「通知公告」类栏目，**不要选「新闻/学院动态」**——新闻对学生没有可行动价值，只会让日报变噪音。
+>
+> 为什么没有研究生院：对本科大二来说，推免/夏令营类通知要到三年级才密集；把名额让给「竞赛/活动」
+> 与「宣讲会/实习」回报更高。等你们到大三，加一行配置就能补回来（改 YAML，不改代码）。
 
 ## 怎么调选择器（10 分钟一个源）
 

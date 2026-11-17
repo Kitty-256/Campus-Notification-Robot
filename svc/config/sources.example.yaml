@@ -9,7 +9,8 @@
 #   detail_limit     每轮最多抓几个详情页（控制请求量）
 #
 # ⚠ 下面的 list_url 与选择器都是「待实测」的初始值：第一次跑起来后
-#   按 README「调选择器」一节逐个核对，改到能拿到正确标题为止。
+#   按 docs/sources.md「怎么调选择器」逐个核对，改到能拿到正确标题为止。
+# ⚠ 只选「通知公告」类栏目，不要选「新闻/学院动态」——新闻没有可行动价值。
 
 - id: jwc
   list_url: https://jwc.xmu.edu.cn/tzgg.htm
@@ -20,14 +21,6 @@
   detail_limit: 6
   enabled: false          # 实测通过后改成 true
 
-- id: gs
-  list_url: https://gs.xmu.edu.cn/tzgg.htm
-  item_selector: div.list li
-  encoding: utf-8
-  kind: html
-  detail_limit: 6
-  enabled: false
-
 - id: informatics
   list_url: https://informatics.xmu.edu.cn/tzgg.htm
   item_selector: ul.news_list li
@@ -36,7 +29,37 @@
   detail_limit: 6
   enabled: false
 
-# 第四个源：如果站上有 RSS，就直接用 rss 类型，最省事
+# 校团委：竞赛、社会实践、活动报名
+# 常见栏目名：通知公告 / 工作动态 / 团学活动（打开首页看导航，别猜）
+- id: tw
+  list_url: https://tw.xmu.edu.cn/tzgg.htm
+  item_selector: ul.news_list li
+  encoding: utf-8
+  kind: html
+  detail_limit: 6
+  enabled: false
+
+# ---- 第 4 个源（三选一，实测哪个能用就上哪个）----
+# 建议优先「学生就业创业指导中心」：宣讲会/实习/招聘，错过就没有了
+#
+# - id: job
+#   list_url: https://jyzd.xmu.edu.cn/tzgg.htm
+#   item_selector: ul.news_list li
+#   encoding: utf-8
+#   kind: html
+#   detail_limit: 6
+#   enabled: false
+#
+# 备选 A：图书馆（讲座、闭馆通知）
+# - id: lib
+#   list_url: https://library.xmu.edu.cn/tzgg.htm
+#   item_selector: ul.news_list li
+#   encoding: utf-8
+#   kind: html
+#   detail_limit: 4
+#   enabled: false
+#
+# 备选 B：如果站上本来就有 RSS，用 rss 类型最省事（连选择器都不用写）
 # - id: xmu_rss
 #   list_url: http://127.0.0.1:1200/xmu/xxx
 #   kind: rss
