@@ -19,6 +19,8 @@ from ..settings import settings
 
 _BLOCK_TAG = re.compile(r"<(script|style)[^>]*>.*?</\1>", re.S | re.I)
 _LINK_RE = re.compile(r'<a[^>]+href=["\']([^"\']+)["\'][^>]*>(.*?)</a>', re.S | re.I)
+# 列表页常把日期拼在标题后面（「关于…的通知 2026-11-16」），入库前切掉
+_TRAIL_DATE = re.compile(r"\s*(20\d{2})\s*[-./年]\s*\d{1,2}\s*[-./月]\s*\d{1,2}\s*日?\s*$")
 
 
 def _headers() -> dict:
@@ -59,6 +61,7 @@ def extract_links(html: str, selector: str | None, base_url: str,
         if not url.startswith("http") or url in seen:
             return
         label = clean_text(title or text).strip()
+        label = _TRAIL_DATE.sub("", label).strip()
         if len(label) < 6:      # 「更多>>」「[详情]」这类不要
             return
         seen.add(url)
