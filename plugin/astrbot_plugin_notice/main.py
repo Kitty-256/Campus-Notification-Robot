@@ -298,6 +298,7 @@ class NoticePlugin(Star):
 
     SRC_NAME = {"jwc": "教务处", "xsc": "学生工作部", "tw": "校团委",
                 "informatics": "信息学院·科创", "informatics_jczd": "信息学院·奖助",
+                "cxw": "本科生创新网",
                 "xaxq": "翔安校区"}
 
     def _fmt_single(self, it: dict) -> str:

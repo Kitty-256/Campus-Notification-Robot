@@ -11,7 +11,8 @@ from datetime import datetime, timedelta
 from .db import execute, log_fetch, now_str, query, query_one
 from .dedup import days_apart, is_dup_title, simhash, url_hash
 from .llm import summarize
-from .parse import clean_text, find_deadline, guess_tags, one_line_from, parse_date
+from .parse import (clean_text, find_deadline, find_publish_date, guess_tags,
+                     one_line_from, parse_date)
 from .settings import settings
 
 CLUSTER_WINDOW_DAYS = 3
@@ -32,8 +33,11 @@ def ingest(items: list[dict]) -> dict:
             skipped += 1
             continue
         content = clean_text(it.get("content")) or None
-        # 注意：不要拿正文里第一个日期当发布时间——那通常是截止时间。
-        pub = it.get("published_at") or now_str()[:10]
+        # 发布时间优先级：列表页带的日期 > 详情页「发布时间：」标记 > 抓取当天
+        # （不要拿正文里第一个日期——那通常是截止时间）
+        pub = (it.get("published_at")
+               or find_publish_date(content or "")
+               or now_str()[:10])
         execute(
             """INSERT INTO raw_items(source, url, url_hash, title, content,
                                     published_at, fetched_at)
@@ -150,12 +154,16 @@ def digest(limit: int = 12, day: str | None = None) -> dict:
     """
     day = day or now_str()[:10]
     rows = query(
-        """SELECT id, title, one_line, who, deadline, place, tags, url, score
-           FROM notices
-           WHERE status='published'
-             AND substr(created_at,1,10)=?
-             AND (deadline IS NULL OR substr(deadline,1,10) >= ?)
-           ORDER BY score DESC, id DESC LIMIT ?""",
+        """SELECT n.id, n.title, n.one_line, n.who, n.deadline, n.place,
+                  n.tags, n.url, n.score, n.source,
+                  COALESCE(NULLIF(r.published_at,''), n.created_at) AS published_at
+           FROM notices n
+           LEFT JOIN raw_items r ON r.id = n.raw_id
+           WHERE n.status='published'
+             AND substr(n.created_at,1,10)=?
+             AND (n.deadline IS NULL OR substr(n.deadline,1,10) >= ?)
+           ORDER BY published_at DESC, n.id DESC
+           LIMIT ?""",
         (day, day, limit),
     )
     items = []

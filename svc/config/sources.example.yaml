@@ -1,4 +1,4 @@
-# 信息源配置：改这里就等于接入新源，不用改代码。
+﻿# 信息源配置：改这里就等于接入新源，不用改代码。
 #
 # 实测状态（2026-11-17，用 scripts/list_structure.py --sel= 验证）：
 #   jwc    教务处      服务端渲染 OK   li.news                        命中 15 条
@@ -52,6 +52,17 @@
   list_url: https://informatics.xmu.edu.cn/xszx/jczd.htm
   kind: browser
   limit: 15
+  enabled: true
+
+# 本科生创新网·通知公告（学业竞赛、创新项目，服务端渲染）
+# 文章链接形如 /cms/<栏目id>/<文章id>，导航链接只有一段，所以用两段的正则过滤
+- id: cxw
+  list_url: https://cxw.xmu.edu.cn/cms/3KXbEwHhM9xDxVZoAXd7U8-1
+  item_selector: li.news
+  url_hint: "/cms/[^/]+/[^/]+"
+  encoding: utf-8
+  kind: html
+  detail_limit: 4
   enabled: true
 
 # ---- 备选源：想换掉上面任意一个，把它的 enabled 改 false、这段的 true ----

@@ -55,16 +55,32 @@ def collect(src: dict) -> list[dict]:
         # 不依赖具体 CSS 选择器：取所有链接，标题优先取卡片里的标题元素。
         # 信息学院这类站点的 <a> 包住整张卡片（日期 + 标题 + 摘要），
         # 直接读 innerText 会超过 80 字被过滤，所以先找 h1~h6 / .title。
+        # 顺便把卡片里的日期取出来当发布时间（卡片日期形如「18 / 2026-11」）。
         anchors = page.eval_on_selector_all(
             "a[href]",
             """els => els.map(e => {
                    const h = e.querySelector('h1,h2,h3,h4,h5,h6,.title');
                    const raw = h ? h.innerText
                                  : (e.getAttribute('title') || e.innerText || '');
-                   return { href: e.href || '', text: (raw || '').trim() };
+                   const dEl = e.querySelector('.date, time, .time');
+                   return { href: e.href || '',
+                            text: (raw || '').trim(),
+                            date: dEl ? dEl.innerText.replace(/\\s+/g, ' ').trim() : '' };
                })""",
         )
         browser.close()
+
+    def _card_date(raw: str) -> str | None:
+        """把「18 2026-11」「2026-11-18」这类卡片日期归一成 YYYY-MM-DD。"""
+        if not raw:
+            return None
+        m = re.search(r"(\d{1,2})\s*(\d{4})-(\d{1,2})", raw)      # 18 2026-11
+        if m:
+            return f"{int(m.group(2)):04d}-{int(m.group(3)):02d}-{int(m.group(1)):02d}"
+        m = re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", raw)        # 2026-11-18
+        if m:
+            return f"{int(m.group(1)):04d}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+        return None
 
     for a in anchors:
         href = (a.get("href") or "").strip()
@@ -78,7 +94,8 @@ def collect(src: dict) -> list[dict]:
         if any(w in text for w in NAV_WORDS):
             continue
         seen.add(href)
-        items.append({"source": src["id"], "url": href, "title": text})
+        items.append({"source": src["id"], "url": href, "title": text,
+                      "published_at": _card_date(a.get("date") or "")})
         if len(items) >= limit:
             break
 

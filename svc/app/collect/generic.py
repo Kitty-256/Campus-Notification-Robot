@@ -19,8 +19,9 @@ from ..settings import settings
 
 _BLOCK_TAG = re.compile(r"<(script|style)[^>]*>.*?</\1>", re.S | re.I)
 _LINK_RE = re.compile(r'<a[^>]+href=["\']([^"\']+)["\'][^>]*>(.*?)</a>', re.S | re.I)
-# 列表页常把日期拼在标题后面（「关于…的通知 2026-11-16」），入库前切掉
-_TRAIL_DATE = re.compile(r"\s*(20\d{2})\s*[-./年]\s*\d{1,2}\s*[-./月]\s*\d{1,2}\s*日?\s*$")
+# 列表页常把日期拼在标题后面（「关于…的通知 2026-11-16」）：切掉，同时留作发布时间
+_TRAIL_DATE = re.compile(
+    r"\s*(20\d{2})\s*[-./年]\s*(\d{1,2})\s*[-./月]\s*(\d{1,2})\s*日?\s*$")
 # 标题前面有时带箭头/序号（厦大部分列表是「> 关于…」），切掉
 _LEAD_NOISE = re.compile(r"^[\s>›»·•\-—–\|]+")
 # 只收「文章型」链接：导航、栏目首页一律不要。可在源配置里用 url_hint 覆盖
@@ -82,14 +83,20 @@ def extract_links(html: str, selector: str | None, base_url: str,
             return                      # 导航 / 栏目首页 / 锚点
         label = clean_text(title or text).strip()
         label = _LEAD_NOISE.sub("", label)
-        label = _TRAIL_DATE.sub("", label).strip()
+        # 列表页常把发布日期拼在标题后面，切掉的同时把它留下来当发布时间
+        pub = None
+        m = _TRAIL_DATE.search(label)
+        if m:
+            y, mo, d = m.group(1), m.group(2), m.group(3)
+            pub = f"{int(y):04d}-{int(mo):02d}-{int(d):02d}"
+            label = label[: m.start()].strip()
         label = label.rstrip("：:，,、 ")
         if len(label) < 8:
             return
         if any(label.startswith(w) for w in NAV_WORDS):
             return
         seen.add(url)
-        out.append({"url": url, "title": label})
+        out.append({"url": url, "title": label, "published_at": pub})
 
     if selector:
         try:
@@ -182,6 +189,7 @@ def collect(src: dict, fresh_only: bool = True) -> list[dict]:
             "url": link["url"],
             "title": link["title"],
             "content": content,
+            "published_at": link.get("published_at"),
         })
         if len(items) >= limit:
             break

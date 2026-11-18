@@ -104,6 +104,22 @@ def parse_date(text: str, default_year: int | None = None) -> str | None:
     return None
 
 
+PUBLISH_HINTS = ("发布时间", "发布日期", "发布于", "发文日期", "更新日期", "时间：")
+PUBLISH_RE = re.compile(
+    r"(?:发布时间|发布日期|发布于|发文日期|更新日期)\s*[:：]?\s*"
+    r"(20\d{2})\s*[年\-/.]\s*(\d{1,2})\s*[月\-/.]\s*(\d{1,2})")
+
+
+def find_publish_date(text: str) -> str | None:
+    """从详情页正文里找「发布时间：2026年10月16日」这类标记。"""
+    if not text:
+        return None
+    m = PUBLISH_RE.search(text)
+    if not m:
+        return None
+    return _mk(m.group(1), m.group(2), m.group(3), None, None)
+
+
 def find_deadline(text: str, default_year: int | None = None) -> str | None:
     """找"截止类"日期：日期前面有「截止/之前」，或后面紧跟「前/之前/截止」。
 
