@@ -78,7 +78,8 @@ def fallback_summary(title: str, content: str) -> dict:
     return {
         "one_line": one_line_from(title, content),
         "who": None,
-        "deadline": find_deadline(clean_text(content)),
+        # 很多通知只写「12月5日前」，不带年份——用当前年份兜底
+        "deadline": find_deadline(clean_text(content), default_year=int(now_str()[:4])),
         "place": None,
         "actions": ["查看原文"],
         "tags": guess_tags(title, content),

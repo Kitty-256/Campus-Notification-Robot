@@ -5,16 +5,49 @@ import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent          # svc/
+REPO_DIR = BASE_DIR.parent                                  # 仓库根
+
+
+def _load_env_file() -> None:
+    """读 .env（仓库根或 svc/ 下）。已存在的环境变量优先，不覆盖。
+
+    刻意不引 python-dotenv：20 行够用，少一个依赖。
+    """
+    for p in (REPO_DIR / ".env", BASE_DIR / ".env"):
+        if not p.exists():
+            continue
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        for line in text.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            k, v = k.strip(), v.strip().strip('"').strip("'")
+            if k and k not in os.environ:
+                os.environ[k] = v
+
+
+_load_env_file()
 
 
 def _env(key: str, default: str = "") -> str:
     return os.environ.get(key, default).strip()
 
 
+def _resolve(p: str, default_rel: str) -> str:
+    """相对路径按仓库根解析，避免本地跑时写到了意料之外的位置。"""
+    raw = p or default_rel
+    path = Path(raw)
+    return str(path) if path.is_absolute() else str((REPO_DIR / raw).resolve())
+
+
 class Settings:
-    # 数据库：Docker 内是 /data/notice.db；本地跑可设成 ./data/notice.db
-    db_path: str = _env("DB_PATH", str(BASE_DIR / "data" / "notice.db"))
-    sources_file: str = _env("SOURCES_FILE", str(BASE_DIR / "data" / "sources.yaml"))
+    # 数据库：默认仓库根下 data/notice.db；Docker 里由 compose 覆盖成 /data/notice.db
+    db_path: str = _resolve(_env("DB_PATH"), "data/notice.db")
+    sources_file: str = _resolve(_env("SOURCES_FILE"), "data/sources.yaml")
     admin_token: str = _env("ADMIN_TOKEN", "change-me")
 
     # 只用于展示的时区偏移（Asia/Shanghai），避免依赖 tzdata

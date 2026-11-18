@@ -112,7 +112,8 @@ def process_pending(limit: int = 50) -> dict:
         else:
             data = summarize(item["title"], content, item["url"], item["source"])
 
-        deadline = data.get("deadline") or find_deadline(content)
+        deadline = data.get("deadline") or find_deadline(
+            content, default_year=int(now_str()[:4]))
         tags = data.get("tags") or guess_tags(item["title"], content)
         one_line = data.get("one_line") or one_line_from(item["title"], content)
         score = round(_urgency(deadline), 3)
@@ -141,13 +142,21 @@ def process_pending(limit: int = 50) -> dict:
 
 
 def digest(limit: int = 12, day: str | None = None) -> dict:
+    """当天日报。
+
+    两条过滤，都是被真实数据逼出来的：
+    1. 只取当天入库的（首次冷启动会把列表页的历史通知一起抓进来，靠状态区分没用）；
+    2. 截止时间已过的不进日报（9 月的社团换届通知没必要出现在 11 月的日报里）。
+    """
     day = day or now_str()[:10]
     rows = query(
         """SELECT id, title, one_line, who, deadline, place, tags, url, score
            FROM notices
-           WHERE status='published' AND substr(created_at,1,10)=?
+           WHERE status='published'
+             AND substr(created_at,1,10)=?
+             AND (deadline IS NULL OR substr(deadline,1,10) >= ?)
            ORDER BY score DESC, id DESC LIMIT ?""",
-        (day, limit),
+        (day, day, limit),
     )
     items = []
     for r in rows:

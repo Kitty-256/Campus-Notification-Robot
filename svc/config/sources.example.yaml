@@ -1,4 +1,4 @@
-# 信息源配置：改这里就等于接入新源，不用改代码。
+﻿# 信息源配置：改这里就等于接入新源，不用改代码。
 #
 # 实测状态（2026-11-17，用 scripts/list_structure.py --sel= 验证）：
 #   jwc    教务处      服务端渲染 OK   li.news                        命中 15 条
@@ -18,7 +18,7 @@
   content_selector: .v_news_content
   encoding: utf-8
   kind: html
-  detail_limit: 6
+  detail_limit: 12
   enabled: true
 
 # 学生工作部：奖学金、助学金、评优、资助、医保卡——大二最常错过的那类通知在这
@@ -27,7 +27,7 @@
   item_selector: div.tzgg-item-title
   encoding: utf-8
   kind: html
-  detail_limit: 4
+  detail_limit: 12
   enabled: true
 
 - id: tw
@@ -35,7 +35,7 @@
   item_selector: div.col-md-9.col-sm-9.col-xs-9
   encoding: utf-8
   kind: html
-  detail_limit: 6
+  detail_limit: 12
   enabled: true
 
 # 信息学院：Vue 渲染，用浏览器采集器（需要 playwright）

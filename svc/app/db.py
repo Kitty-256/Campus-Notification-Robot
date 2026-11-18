@@ -88,6 +88,12 @@ def upsert_source(sid: str, list_url: str, item_selector: str | None,
     )
 
 
+def url_exists(url: str) -> bool:
+    """这条链接是否已经入过库（用于跳过重复抓详情）。"""
+    from .dedup import url_hash
+    return query_one("SELECT 1 FROM raw_items WHERE url_hash=?", (url_hash(url),)) is not None
+
+
 def log_fetch(source: str, ok: bool, n: int = 0, err: str | None = None) -> None:
     execute(
         "INSERT INTO fetch_log(source, ok, n, err, ts) VALUES(?,?,?,?,?)",

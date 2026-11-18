@@ -42,6 +42,38 @@ def clean_text(raw: str | None) -> str:
     return "\n".join(line.strip() for line in s.split("\n")).strip()
 
 
+def clean_article(text: str) -> str:
+    """把详情页文本裁成「正文」：去掉导航、面包屑、页脚、上下篇。
+
+    厦大各站的正文容器常常把整页模板也包进去（实测 #vsb_content 会带上
+    「首页 概况 信息公开 …」），所以做一次通用裁剪，而不是依赖精确选择器。
+    """
+    if not text:
+        return ""
+    s = text.replace("\ufeff", "").replace("\u3000", " ")
+
+    # 1) 面包屑之后才是正文
+    m = re.search(r"当前位置[:：]", s)
+    if m:
+        s = s[m.end():]
+    s = re.sub(r"^\s*(首页)?\s*[>>›]{1,3}\s*", "", s)
+
+    # 2) 丢掉页脚与操作项
+    s = re.split(r"(上一篇|下一篇|上一条|下一条|返回列表|返回顶部|版权所有|打印本页)", s)[0]
+
+    lines = []
+    for raw_line in s.split("\n"):
+        line = raw_line.strip()
+        if not line:
+            continue
+        if len(line) <= 6:                       # 「首页」「概况」「学籍学务」这类导航
+            continue
+        if re.fullmatch(r"[\d\s\-—/.:：年月日时]+", line):
+            continue
+        lines.append(line)
+    return "\n".join(lines).strip()
+
+
 def _mk(y: int, mo: int, d: int, hh: str | None, mm: str | None) -> str | None:
     try:
         if hh is not None:

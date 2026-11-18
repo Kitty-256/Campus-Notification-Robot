@@ -14,13 +14,20 @@ from urllib.parse import urljoin
 
 import httpx
 
-from ..parse import clean_text
+from ..parse import clean_article, clean_text
 from ..settings import settings
 
 _BLOCK_TAG = re.compile(r"<(script|style)[^>]*>.*?</\1>", re.S | re.I)
 _LINK_RE = re.compile(r'<a[^>]+href=["\']([^"\']+)["\'][^>]*>(.*?)</a>', re.S | re.I)
 # 列表页常把日期拼在标题后面（「关于…的通知 2026-11-16」），入库前切掉
 _TRAIL_DATE = re.compile(r"\s*(20\d{2})\s*[-./年]\s*\d{1,2}\s*[-./月]\s*\d{1,2}\s*日?\s*$")
+# 标题前面有时带箭头/序号（厦大部分列表是「> 关于…」），切掉
+_LEAD_NOISE = re.compile(r"^[\s>›»·•\-—–\|]+")
+# 只收「文章型」链接：导航、栏目首页一律不要。可在源配置里用 url_hint 覆盖
+DEFAULT_URL_HINT = re.compile(r"(/info/|content\.jsp|wbnewsid|/article/|/detail)", re.I)
+# 这些词开头的多半是导航/栏目入口
+NAV_WORDS = ("返回", "更多", "首页", "上一页", "下一页", "English", "EN", "登录",
+             "学院概况", "联系我们", "友情链接", "版权所有", "学生组织简介")
 
 
 def _headers() -> dict:
@@ -49,10 +56,19 @@ def _decode(resp: httpx.Response, encoding: str) -> str:
 
 
 def extract_links(html: str, selector: str | None, base_url: str,
-                  limit: int = 30) -> list[dict]:
-    """优先用 selectolax + CSS 选择器；没装或没配就退回正则全页链接。"""
+                  limit: int = 30, url_hint: str | None = None,
+                  same_host: bool = True) -> list[dict]:
+    """优先用 selectolax + CSS 选择器；没装或没配就退回正则全页链接。
+
+    两道过滤缺一不可：
+    - URL 过滤：只留文章型链接（/info/、content.jsp…），挡掉导航与栏目首页
+    - 标题过滤：去掉「> 」前缀、切掉日期、排除导航词与冒号结尾的分区标题
+    """
     out: list[dict] = []
     seen: set[str] = set()
+    hint = re.compile(url_hint, re.I) if url_hint else DEFAULT_URL_HINT
+    from urllib.parse import urlsplit
+    base_host = urlsplit(base_url).netloc.lower()
 
     def add(href: str, text: str, title: str | None = None) -> None:
         if not href or href.startswith(("javascript:", "#", "mailto:")):
@@ -60,9 +76,17 @@ def extract_links(html: str, selector: str | None, base_url: str,
         url = urljoin(base_url, href.strip())
         if not url.startswith("http") or url in seen:
             return
+        if same_host and urlsplit(url).netloc.lower() != base_host:
+            return                      # 跳去别的站（如校园新闻）多半不是本栏目通知
+        if not hint.search(url):
+            return                      # 导航 / 栏目首页 / 锚点
         label = clean_text(title or text).strip()
+        label = _LEAD_NOISE.sub("", label)
         label = _TRAIL_DATE.sub("", label).strip()
-        if len(label) < 6:      # 「更多>>」「[详情]」这类不要
+        label = label.rstrip("：:，,、 ")
+        if len(label) < 8:
+            return
+        if any(label.startswith(w) for w in NAV_WORDS):
             return
         seen.add(url)
         out.append({"url": url, "title": label})
@@ -71,7 +95,7 @@ def extract_links(html: str, selector: str | None, base_url: str,
         try:
             from selectolax.parser import HTMLParser  # 可选依赖
             tree = HTMLParser(html)
-            for node in tree.css(selector)[:limit]:
+            for node in tree.css(selector)[: max(limit * 2, 40)]:
                 a = node.css_first("a") or node
                 if getattr(a, "tag", "") != "a":
                     continue
@@ -95,7 +119,9 @@ def fetch_list(src: dict) -> list[dict]:
         resp.raise_for_status()
         html = _decode(resp, src.get("encoding", "utf-8"))
     return extract_links(html, src.get("item_selector"), url,
-                         limit=int(src.get("limit", 30)))
+                         limit=int(src.get("limit", 30)),
+                         url_hint=src.get("url_hint"),
+                         same_host=bool(src.get("same_host_only", True)))
 
 
 def fetch_detail(url: str, selector: str | None = None, max_chars: int = 4000) -> str:
@@ -108,12 +134,17 @@ def fetch_detail(url: str, selector: str | None = None, max_chars: int = 4000) -
     except Exception:                                   # noqa: BLE001
         return ""
 
+    def _finish(txt: str) -> str:
+        return clean_article(txt)[:max_chars]
+
     if selector:
         try:
             from selectolax.parser import HTMLParser
             node = HTMLParser(html).css_first(selector)
             if node:
-                return node.text(separator="\n", strip=True)[:max_chars]
+                got = _finish(node.text(separator="\n", strip=True))
+                if len(got) >= 50:          # 选择器抓到的是整页模板时，交给通用抽取再试
+                    return got
         except ImportError:
             pass
 
@@ -122,19 +153,28 @@ def fetch_detail(url: str, selector: str | None = None, max_chars: int = 4000) -
         txt = trafilatura.extract(html, url=url, include_comments=False,
                                   include_tables=True, favor_recall=True)
         if txt:
-            return txt[:max_chars]
+            return _finish(txt)
     except Exception:                                   # noqa: BLE001
         pass
-    return clean_text(html)[:max_chars]
+    return _finish(clean_text(html))
 
 
 def collect(src: dict, fresh_only: bool = True) -> list[dict]:
-    """采一个源：列表 + （限量）详情正文。"""
+    """采一个源：列表 + （限量）详情正文。
+
+    fresh_only=True 时跳过库里已有的链接——稳态下每小时只有 1~3 条新通知，
+    这样既能把 detail_limit 开大（首轮补齐正文），又不会每小时都去打扰学校服务器。
+    """
+    from ..db import url_exists          # 延迟导入，避免循环依赖
+
     links = fetch_list(src)
+    limit = int(src.get("detail_limit", 8))
     items = []
-    for i, link in enumerate(links):
+    for link in links:
+        if fresh_only and url_exists(link["url"]):
+            continue
         content = ""
-        if src.get("fetch_detail", True) and i < int(src.get("detail_limit", 8)):
+        if src.get("fetch_detail", True):
             content = fetch_detail(link["url"], src.get("content_selector"))
             time.sleep(random.uniform(settings.crawl_delay_min, settings.crawl_delay_max))
         items.append({
@@ -143,4 +183,6 @@ def collect(src: dict, fresh_only: bool = True) -> list[dict]:
             "title": link["title"],
             "content": content,
         })
+        if len(items) >= limit:
+            break
     return items
