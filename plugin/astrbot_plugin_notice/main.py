@@ -233,8 +233,22 @@ class NoticePlugin(Star):
 
     # ------------------------------------------------------------ 实时推送
     async def _realtime_loop(self) -> None:
-        """每 N 分钟问一次后端「有没有新通知」，有就立刻发到群里。"""
-        await asyncio.sleep(20)                 # 等适配器就绪
+        """每 N 分钟问一次后端「有没有新通知」，有就立刻发到群里。
+
+        开机补抓：后端刚启动时会立刻抓一轮（夜里关机期间的新通知就在这一轮进来），
+        但抓取要几十秒，所以启动后先密集检查几次，把「开机后一并补推」做顺。
+        """
+        await asyncio.sleep(15)                 # 等适配器就绪
+        for gap in (0, 20, 40, 90, 180):        # 前 ~5 分钟密集检查
+            if gap:
+                await asyncio.sleep(gap)
+            try:
+                await self._push_new()
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:              # noqa: BLE001
+                logger.error("[notice] 开机补推异常: %s", e)
+
         while True:
             try:
                 await self._push_new()
