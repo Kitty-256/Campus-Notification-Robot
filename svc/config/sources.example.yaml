@@ -38,9 +38,11 @@
   detail_limit: 12
   enabled: true
 
-# 信息学院：Vue 渲染，用浏览器采集器（需要 playwright）
+# 信息学院·学生工作·科创学术（竞赛/选拔赛/获奖公示，Vue 渲染 → 浏览器）
+# 实测新鲜度（2026-11-18）：科创学术最新 2026-10-28；原「通知公告」栏目最新只到 2026-09/2025，
+# 「就业创业」停在 2024，故改用本栏目。
 - id: informatics
-  list_url: https://informatics.xmu.edu.cn/news_events/tzgg.htm
+  list_url: https://informatics.xmu.edu.cn/xszx/kcxs.htm
   kind: browser
   limit: 15
   enabled: true

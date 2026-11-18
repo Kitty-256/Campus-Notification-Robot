@@ -1,4 +1,4 @@
-"""AstrBot 插件：校园通知日报（薄壳）。
+﻿"""AstrBot 插件：校园通知日报（薄壳）。
 
 硬约束：
 1. 本文件不出现任何抓网页、提示词、数据库访问的代码；只调 notice-svc 的 HTTP 接口。
@@ -297,7 +297,8 @@ class NoticePlugin(Star):
         return umo
 
     SRC_NAME = {"jwc": "教务处", "xsc": "学生工作部", "tw": "校团委",
-                "informatics": "信息学院", "xaxq": "翔安校区"}
+                "informatics": "信息学院·科创", "informatics_jczd": "信息学院·奖助",
+                "xaxq": "翔安校区"}
 
     def _fmt_single(self, it: dict) -> str:
         src = self.SRC_NAME.get(it.get("source"), it.get("source") or "通知")
