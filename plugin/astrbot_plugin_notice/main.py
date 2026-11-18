@@ -16,7 +16,7 @@ import aiohttp
 
 import astrbot.api.message_components as Comp  # noqa: F401  （保留给后续合并转发用）
 from astrbot.api import logger
-from astrbot.api.event import AstrMessageEvent, filter
+from astrbot.api.event import AstrMessageEvent, MessageChain, filter
 from astrbot.api.star import Context, Star, register
 
 ZWSP = "\u200b"          # aiocqhttp 发送 plain 时会 strip 首尾空白，用它护住排版
@@ -227,6 +227,10 @@ class NoticePlugin(Star):
         logger.info("[notice] 已绑定推送群 %s，umo=%s", gid, umo)
         yield event.plain_result(f"已把本群设为日报推送目标（群 {gid}）。\n之后只会往这个群发通知。")
 
+    async def _send(self, umo: str, text: str) -> None:
+        """主动发消息必须传 MessageChain（AstrBot 4.x 的 send_message 签名要求）。"""
+        await self.context.send_message(umo, MessageChain().message(text))
+
     # ------------------------------------------------------------ 实时推送
     async def _realtime_loop(self) -> None:
         """每 N 分钟问一次后端「有没有新通知」，有就立刻发到群里。"""
@@ -263,7 +267,7 @@ class NoticePlugin(Star):
         else:
             text = "\n\n".join(self._fmt_single(it) for it in items)
 
-        await self.context.send_message(umo, text)
+        await self._send(umo, text)
         await self._kv_put("last_notice_id", str(max_id))
         logger.info("[notice] 实时推送 %s 条新通知 → %s", len(items), umo)
 
@@ -380,7 +384,7 @@ class NoticePlugin(Star):
             return True
 
         try:
-            await self.context.send_message(umo, self._fmt(data))
+            await self._send(umo, self._fmt(data))
         except Exception as e:                             # noqa: BLE001
             logger.error("[notice] 发送失败: %s", e)
             return False
