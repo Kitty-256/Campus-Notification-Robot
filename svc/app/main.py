@@ -127,6 +127,13 @@ def admin_process(limit: int = 50,
 
 
 # ---------------------------------------------------------------- 查询
+@app.get("/api/new")
+def api_new(after_id: int = 0,
+            limit: int = Query(default=20, ge=1, le=100)) -> dict:
+    """实时推送用：id 大于 after_id 的通知（升序）。"""
+    return pipeline.new_notices(after_id=after_id, limit=limit)
+
+
 @app.get("/api/digest")
 def api_digest(limit: int = Query(default=12, ge=1, le=50),
                day: str | None = None) -> dict:

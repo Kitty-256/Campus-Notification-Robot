@@ -6,27 +6,42 @@
   },
   "allowed_groups": {
     "type": "string",
-    "description": "允许使用指令并接收日报的群号，多个用逗号分隔。留空则只有 /绑定推送 一次机会，绑定后自动锁死该群。",
+    "description": "允许使用指令并接收通知的群号，多个用逗号分隔。留空则只有 /绑定推送 一次机会，绑定后锁死该群。",
     "default": ""
+  },
+  "realtime": {
+    "type": "bool",
+    "description": "实时推送：每 watch_interval_min 分钟检查一次，有新通知立即发到群里",
+    "default": true
+  },
+  "watch_interval_min": {
+    "type": "int",
+    "description": "实时检查间隔（分钟）。后端抓取是每 10 分钟一轮，这里建议 3，总延迟约 10~13 分钟",
+    "default": 3
+  },
+  "daily_summary": {
+    "type": "bool",
+    "description": "每天定时汇总（08:00 一条日报）。开了实时推送后一般不需要，默认关闭",
+    "default": false
   },
   "push_time": {
     "type": "string",
-    "description": "每日推送时间 HH:MM（24 小时制）",
-    "default": "07:30"
+    "description": "每日汇总时间 HH:MM（仅当 daily_summary 打开时生效）",
+    "default": "08:00"
   },
   "push_umo": {
     "type": "string",
-    "description": "日报推送目标会话 UMO（在群里发 /绑定推送 自动写入，勿手抄）",
+    "description": "推送目标会话 UMO（在群里发 /绑定推送 自动写入，勿手抄）",
     "default": ""
   },
   "push_group": {
     "type": "string",
-    "description": "日报推送目标群号（/绑定推送 自动写入）",
+    "description": "推送目标群号（/绑定推送 自动写入）",
     "default": ""
   },
   "bot_uin": {
     "type": "string",
-    "description": "机器人 QQ 号（合并转发卡片显示用，可留空）",
+    "description": "机器人 QQ 号（合并转发卡片用，可留空）",
     "default": ""
   }
 }

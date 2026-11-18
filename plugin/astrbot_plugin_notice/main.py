@@ -23,23 +23,43 @@ ZWSP = "\u200b"          # aiocqhttp 发送 plain 时会 strip 首尾空白，�
 DEFAULT_SVC = "http://127.0.0.1:8000"
 
 
-@register("astrbot_plugin_notice", "xmu-ai-team", "校园通知日报", "1.1.0")
+@register("astrbot_plugin_notice", "xmu-ai-team", "校园通知日报", "1.2.0")
 class NoticePlugin(Star):
     def __init__(self, context: Context, config: dict | None = None):
         super().__init__(context)
         self.config = config or {}
-        self._task: asyncio.Task | None = None
+        self._tasks: list[asyncio.Task] = []
 
     # ------------------------------------------------------------ 生命周期
     async def initialize(self) -> None:
-        self._task = asyncio.create_task(self._daily_loop())
+        self._tasks = []
+        if self._realtime():
+            self._tasks.append(asyncio.create_task(self._realtime_loop()))
+        if self._daily_summary():
+            self._tasks.append(asyncio.create_task(self._daily_loop()))
         allowed = await self._allowed_groups()
-        logger.info("[notice] 插件已启动，推送时间=%s，授权群=%s",
+        logger.info("[notice] 插件已启动｜实时=%s（每 %s 分钟）｜日报=%s（%s）｜授权群=%s",
+                    self._realtime(), self._watch_interval(), self._daily_summary(),
                     self._push_time(), allowed or "（未授权，等待 /绑定推送）")
 
     async def terminate(self) -> None:
-        if self._task:
-            self._task.cancel()
+        for t in getattr(self, "_tasks", []):
+            t.cancel()
+
+    # ------------------------------------------------------------ 开关
+    def _realtime(self) -> bool:
+        v = self.config.get("realtime")
+        return True if v is None else str(v).strip().lower() in ("1", "true", "yes", "on", "是")
+
+    def _daily_summary(self) -> bool:
+        v = self.config.get("daily_summary")
+        return False if v is None else str(v).strip().lower() in ("1", "true", "yes", "on", "是")
+
+    def _watch_interval(self) -> int:
+        try:
+            return max(2, int(self.config.get("watch_interval_min") or 10))
+        except (TypeError, ValueError):
+            return 10
 
     # ------------------------------------------------------------ 基础工具
     @property
@@ -206,6 +226,81 @@ class NoticePlugin(Star):
         await self._kv_put("push_group", gid)
         logger.info("[notice] 已绑定推送群 %s，umo=%s", gid, umo)
         yield event.plain_result(f"已把本群设为日报推送目标（群 {gid}）。\n之后只会往这个群发通知。")
+
+    # ------------------------------------------------------------ 实时推送
+    async def _realtime_loop(self) -> None:
+        """每 N 分钟问一次后端「有没有新通知」，有就立刻发到群里。"""
+        await asyncio.sleep(20)                 # 等适配器就绪
+        while True:
+            try:
+                await self._push_new()
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:              # noqa: BLE001
+                logger.error("[notice] 实时推送异常: %s", e)
+            await asyncio.sleep(self._watch_interval() * 60)
+
+    async def _push_new(self) -> None:
+        umo = await self._target_umo()
+        if not umo:
+            return
+
+        last = int(await self._kv_get("last_notice_id", "0") or 0)
+        data = await self._get("/api/new", after_id=last, limit=20)
+        max_id = int(data.get("max_id") or last)
+        items = data.get("items") or []
+
+        if last == 0:
+            # 第一次运行：只从「当前最新」开始，不把历史通知全推一遍
+            await self._kv_put("last_notice_id", str(max_id))
+            logger.info("[notice] 实时推送初始化，起点 id=%s", max_id)
+            return
+        if not items:
+            return
+
+        if len(items) > 3:
+            text = self._fmt_batch(items)
+        else:
+            text = "\n\n".join(self._fmt_single(it) for it in items)
+
+        await self.context.send_message(umo, text)
+        await self._kv_put("last_notice_id", str(max_id))
+        logger.info("[notice] 实时推送 %s 条新通知 → %s", len(items), umo)
+
+    async def _target_umo(self) -> str:
+        """取已验证的推送目标；不满足条件返回空串（一个字都不发）。"""
+        umo = (self.config.get("push_umo") or "").strip() or await self._kv_get("push_umo")
+        if not umo or "GroupMessage" not in umo:
+            return ""
+        allowed = await self._allowed_groups()
+        gid = str(self.config.get("push_group") or await self._kv_get("push_group"))
+        if not gid or (allowed and gid not in allowed):
+            return ""
+        return umo
+
+    SRC_NAME = {"jwc": "教务处", "xsc": "学生工作部", "tw": "校团委",
+                "informatics": "信息学院", "xaxq": "翔安校区"}
+
+    def _fmt_single(self, it: dict) -> str:
+        src = self.SRC_NAME.get(it.get("source"), it.get("source") or "通知")
+        lines = [f"📢 新通知｜{src}", it.get("one_line") or it.get("title") or ""]
+        if it.get("deadline"):
+            lines.append(f"⏰ 截止 {str(it['deadline'])[:16]}")
+        tags = it.get("tags") or []
+        if tags and tags[0] != "其他":
+            lines.append("🏷 " + "/".join(tags))
+        if it.get("url"):
+            lines.append(it["url"])
+        return "\n".join(lines)
+
+    def _fmt_batch(self, items: list) -> str:
+        lines = [f"📢 新通知 {len(items)} 条", ""]
+        for i, it in enumerate(items, 1):
+            dl = f"（截止 {str(it['deadline'])[:16]}）" if it.get("deadline") else ""
+            lines.append(f"{i}. {it.get('one_line') or it.get('title')}{dl}")
+        lines += ["", "详情见 /今日；摘要由模型生成，以原文为准。"]
+        # aiocqhttp 会 strip 首尾空白，用零宽空格护住排版
+        return ZWSP + "\n".join(lines) + ZWSP
 
     # ------------------------------------------------------------ 定时推送
     async def _daily_loop(self) -> None:

@@ -172,6 +172,34 @@ def digest(limit: int = 12, day: str | None = None) -> dict:
     return {"date": day, "total": total, "items": items}
 
 
+def new_notices(after_id: int = 0, limit: int = 20) -> dict:
+    """实时推送用：返回 id 大于 after_id 的通知（按 id 升序，保证不漏不重）。
+
+    max_id 用于插件首次运行时「只从当前最新开始」，避免把历史通知全推一遍。
+    """
+    mx = query_one("SELECT COALESCE(MAX(id),0) AS m FROM notices")["m"]
+    rows = query(
+        """SELECT id, title, one_line, deadline, tags, url, source, score
+           FROM notices
+           WHERE status='published' AND id > ?
+           ORDER BY id ASC LIMIT ?""",
+        (after_id, max(1, min(limit, 100))),
+    )
+    items = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d["tags"] = json.loads(d.get("tags") or "[]")
+        except Exception:
+            d["tags"] = []
+        items.append(d)
+    return {
+        "items": items,
+        "max_id": mx,
+        "last_id": items[-1]["id"] if items else after_id,
+    }
+
+
 def search(q: str, limit: int = 5) -> dict:
     q = (q or "").strip()
     if not q:
