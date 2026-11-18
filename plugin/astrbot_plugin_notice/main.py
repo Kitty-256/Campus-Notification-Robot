@@ -209,22 +209,35 @@ class NoticePlugin(Star):
 
     # ------------------------------------------------------------ 定时推送
     async def _daily_loop(self) -> None:
-        await asyncio.sleep(15)                 # 等 AstrBot 适配器完全就绪
-        try:
-            await self._catch_up()
-        except Exception as e:                  # noqa: BLE001
-            logger.warning("[notice] 补推失败: %s", e)
+        """到点自动推；错过（关机/服务没起）则在启动或下一轮补推；失败 30 分钟后重试。
 
+        这一段就是「不需要人每天发 /今日」的全部实现。
+        """
+        await asyncio.sleep(15)                 # 等 AstrBot 适配器完全就绪
         while True:
             try:
+                if await self._should_push_now():
+                    ok = await self._push_daily()
+                    if not ok:
+                        logger.warning("[notice] 本次推送未成功，30 分钟后重试")
+                        await asyncio.sleep(1800)
+                        continue
                 target = self._next_run()
                 await asyncio.sleep(max(30, (target - datetime.datetime.now()).total_seconds()))
-                await self._push_daily()
             except asyncio.CancelledError:
                 raise
             except Exception as e:              # noqa: BLE001
                 logger.error("[notice] 定时推送异常: %s", e)
                 await asyncio.sleep(300)
+
+    async def _should_push_now(self) -> bool:
+        """今天到点了吗、还没推过吗。两个条件都满足才推（幂等，重启不会重复）。"""
+        day = datetime.date.today().isoformat()
+        if await self._kv_get(f"delivered_{day}"):
+            return False
+        hh, mm = (int(x) for x in self._push_time().split(":"))
+        now = datetime.datetime.now()
+        return (now.hour, now.minute) >= (hh, mm)
 
     def _next_run(self) -> datetime.datetime:
         hh, mm = (int(x) for x in self._push_time().split(":"))
@@ -235,41 +248,48 @@ class NoticePlugin(Star):
         return tgt
 
     async def _catch_up(self) -> None:
-        """今天该推的还没推（比如机器刚开机），立刻补一次。"""
-        day = datetime.date.today().isoformat()
-        if await self._kv_get(f"delivered_{day}"):
-            return
-        now = datetime.datetime.now()
-        hh, mm = (int(x) for x in self._push_time().split(":"))
-        if (now.hour, now.minute) < (hh, mm):
-            return                              # 还没到点
-        await self._push_daily()
+        """兼容保留：等价于「到点且没推过就推一次」。"""
+        if await self._should_push_now():
+            await self._push_daily()
 
-    async def _push_daily(self) -> None:
-        """只往「已绑定的那一个群」发；任何条件不满足就一个字都不发。"""
+    async def _push_daily(self) -> bool:
+        """只往「已绑定的那一个群」发；任何条件不满足就一个字都不发。
+
+        返回 True = 已处理完（推成功，或本来没内容/没绑定这类不需要重试的情况）；
+        返回 False = 可以重试（后端没起、发送失败）。
+        """
         umo = (self.config.get("push_umo") or "").strip() or await self._kv_get("push_umo")
         if not umo:
             logger.warning("[notice] 未绑定推送群，跳过（在目标群发 /绑定推送）")
-            return
+            return True
         if "GroupMessage" not in umo:            # 防御：非群会话绝不推送
             logger.warning("[notice] umo 不是群会话，拒绝推送：%s", umo)
-            return
+            return True
 
         allowed = await self._allowed_groups()
         gid = str(self.config.get("push_group") or await self._kv_get("push_group"))
         if allowed and not gid:
             logger.warning("[notice] 配置了授权群但未绑定推送群，拒绝推送")
-            return
+            return True
         if allowed and gid and gid not in allowed:
             logger.warning("[notice] 推送群 %s 不在授权名单 %s 内，拒绝推送", gid, allowed)
-            return
+            return True
 
-        data = await self._get("/api/digest", limit=12)
+        try:
+            data = await self._get("/api/digest", limit=12)
+        except Exception as e:                             # noqa: BLE001
+            logger.error("[notice] 取日报失败（后端没起？）: %s", e)
+            return False
         if not data.get("items"):
             logger.info("[notice] 今天没有通知，不推送")
-            return
+            return True
 
-        await self.context.send_message(umo, self._fmt(data))
+        try:
+            await self.context.send_message(umo, self._fmt(data))
+        except Exception as e:                             # noqa: BLE001
+            logger.error("[notice] 发送失败: %s", e)
+            return False
+
         day = datetime.date.today().isoformat()
         await self._kv_put(f"delivered_{day}", "1")
         try:
@@ -278,3 +298,4 @@ class NoticePlugin(Star):
         except Exception:                                  # noqa: BLE001
             pass
         logger.info("[notice] 日报已推送：%s 条 → %s", len(data["items"]), umo)
+        return True
