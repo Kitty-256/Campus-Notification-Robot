@@ -4,6 +4,11 @@
     "description": "notice-svc 地址（本机部署用 127.0.0.1；与 Docker 同网络时用 http://notice-svc:8000）",
     "default": "http://127.0.0.1:8000"
   },
+  "allowed_groups": {
+    "type": "string",
+    "description": "允许使用指令并接收日报的群号，多个用逗号分隔。留空则只有 /绑定推送 一次机会，绑定后自动锁死该群。",
+    "default": ""
+  },
   "push_time": {
     "type": "string",
     "description": "每日推送时间 HH:MM（24 小时制）",
@@ -14,14 +19,14 @@
     "description": "日报推送目标会话 UMO（在群里发 /绑定推送 自动写入，勿手抄）",
     "default": ""
   },
+  "push_group": {
+    "type": "string",
+    "description": "日报推送目标群号（/绑定推送 自动写入）",
+    "default": ""
+  },
   "bot_uin": {
     "type": "string",
     "description": "机器人 QQ 号（合并转发卡片显示用，可留空）",
-    "default": ""
-  },
-  "admin_qq": {
-    "type": "string",
-    "description": "管理员 QQ，可用 /绑定推送",
     "default": ""
   }
 }

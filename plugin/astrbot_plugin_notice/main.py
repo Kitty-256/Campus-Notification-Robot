@@ -1,7 +1,11 @@
 """AstrBot 插件：校园通知日报（薄壳）。
 
-硬约束：本文件不出现任何抓网页、提示词、数据库访问的代码。
-它只做三件事：拼 URL 调 notice-svc、把 JSON 排版成消息、调 send_message。
+硬约束：
+1. 本文件不出现任何抓网页、提示词、数据库访问的代码；只调 notice-svc 的 HTTP 接口。
+2. **默认拒绝**：没有授权群就一个字都不发。
+   - 配置里给了 `allowed_groups` → 只有这些群能用指令、能收日报；
+   - 配置为空 → 只有 `/绑定推送` 能用（第一次绑定），绑定后只有那个群被授权；
+   - 任何情况下都不会往私聊、也不会往第二个群推送。
 """
 from __future__ import annotations
 
@@ -10,16 +14,16 @@ import datetime
 
 import aiohttp
 
-import astrbot.api.message_components as Comp
+import astrbot.api.message_components as Comp  # noqa: F401  （保留给后续合并转发用）
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, register
 
 ZWSP = "\u200b"          # aiocqhttp 发送 plain 时会 strip 首尾空白，用它护住排版
-DEFAULT_SVC = "http://notice-svc:8000"
+DEFAULT_SVC = "http://127.0.0.1:8000"
 
 
-@register("astrbot_plugin_notice", "xmu-ai-team", "校园通知日报", "1.0.0")
+@register("astrbot_plugin_notice", "xmu-ai-team", "校园通知日报", "1.1.0")
 class NoticePlugin(Star):
     def __init__(self, context: Context, config: dict | None = None):
         super().__init__(context)
@@ -29,7 +33,9 @@ class NoticePlugin(Star):
     # ------------------------------------------------------------ 生命周期
     async def initialize(self) -> None:
         self._task = asyncio.create_task(self._daily_loop())
-        logger.info("[notice] 插件已启动，推送时间=%s", self._push_time())
+        allowed = await self._allowed_groups()
+        logger.info("[notice] 插件已启动，推送时间=%s，授权群=%s",
+                    self._push_time(), allowed or "（未授权，等待 /绑定推送）")
 
     async def terminate(self) -> None:
         if self._task:
@@ -46,7 +52,10 @@ class NoticePlugin(Star):
         parts = t.split(":")
         if len(parts) != 2:
             return "07:30"
-        return f"{int(parts[0]):02d}:{int(parts[1]):02d}"
+        try:
+            return f"{int(parts[0]):02d}:{int(parts[1]):02d}"
+        except ValueError:
+            return "07:30"
 
     async def _get(self, path: str, **params) -> dict:
         timeout = aiohttp.ClientTimeout(total=10)
@@ -73,6 +82,28 @@ class NoticePlugin(Star):
             await self.put_kv_data(key, value)
         except Exception as e:                             # noqa: BLE001
             logger.warning("[notice] KV 写入失败: %s", e)
+
+    # ------------------------------------------------------------ 授权（默认拒绝）
+    def _config_groups(self) -> set[str]:
+        raw = str(self.config.get("allowed_groups") or "")
+        return {x.strip() for x in raw.replace("，", ",").split(",") if x.strip()}
+
+    async def _allowed_groups(self) -> set[str]:
+        groups = self._config_groups()
+        if groups:
+            return groups
+        bound = await self._kv_get("push_group")
+        return {bound} if bound else set()
+
+    async def _authorized(self, event: AstrMessageEvent, *, allow_bootstrap: bool = False) -> bool:
+        """群号白名单校验。没有白名单时，只有 allow_bootstrap 的指令能过。"""
+        gid = str(event.get_group_id() or "")
+        if not gid:                                   # 私聊一律不处理
+            return False
+        allowed = await self._allowed_groups()
+        if not allowed:
+            return allow_bootstrap
+        return gid in allowed
 
     # ------------------------------------------------------------ 排版
     def _fmt(self, data: dict) -> str:
@@ -104,6 +135,9 @@ class NoticePlugin(Star):
     # ------------------------------------------------------------ 指令
     @filter.command("今日")
     async def cmd_today(self, event: AstrMessageEvent):
+        if not await self._authorized(event):
+            logger.warning("[notice] 未授权群发起 /今日，已忽略：%s", event.get_group_id())
+            return
         try:
             data = await self._get("/api/digest", limit=12)
         except Exception as e:                             # noqa: BLE001
@@ -114,6 +148,9 @@ class NoticePlugin(Star):
 
     @filter.command("搜索")
     async def cmd_search(self, event: AstrMessageEvent, keyword: str = ""):
+        if not await self._authorized(event):
+            logger.warning("[notice] 未授权群发起 /搜索，已忽略：%s", event.get_group_id())
+            return
         kw = (keyword or "").strip()
         if not kw:
             yield event.plain_result("用法：/搜索 保研")
@@ -128,6 +165,8 @@ class NoticePlugin(Star):
 
     @filter.command("订阅")
     async def cmd_subscribe(self, event: AstrMessageEvent, tag: str = ""):
+        if not await self._authorized(event):
+            return
         t = (tag or "").strip()
         if not t:
             yield event.plain_result("用法：/订阅 竞赛（可选：竞赛/奖学金/讲座/宣讲会/选课/考试）")
@@ -142,24 +181,31 @@ class NoticePlugin(Star):
 
     @filter.command("帮助")
     async def cmd_help(self, event: AstrMessageEvent):
+        if not await self._authorized(event, allow_bootstrap=True):
+            return
         yield event.plain_result(
             "可用指令：\n"
             "/今日 —— 今天的通知\n"
             "/搜索 关键词 —— 查历史通知\n"
             "/订阅 竞赛 —— 订阅某类通知\n"
-            "/绑定推送 —— 把本群设为日报推送目标（管理员）\n"
+            "/绑定推送 —— 把本群设为日报推送目标（每个机器人只允许一个群）\n"
             "摘要由模型生成，请以原文为准。"
         )
 
     @filter.command("绑定推送")
     async def cmd_bind(self, event: AstrMessageEvent):
+        gid = str(event.get_group_id() or "")
         umo = getattr(event, "unified_msg_origin", None)
-        if not umo:
-            yield event.plain_result("拿不到本会话标识，请在群内使用。")
-            return
+        if not gid or not umo:
+            return                                  # 私聊里不响应，避免误绑
+        bound = await self._kv_get("push_group")
+        if bound and bound != gid and not self._config_groups():
+            logger.warning("[notice] 拒绝重新绑定：已绑定 %s，请求来自 %s", bound, gid)
+            return                                  # 已绑定别的群 → 静默拒绝
         await self._kv_put("push_umo", umo)
-        logger.info("[notice] push_umo 已绑定为 %s", umo)
-        yield event.plain_result(f"已把本群设为日报推送目标：\n{umo}")
+        await self._kv_put("push_group", gid)
+        logger.info("[notice] 已绑定推送群 %s，umo=%s", gid, umo)
+        yield event.plain_result(f"已把本群设为日报推送目标（群 {gid}）。\n之后只会往这个群发通知。")
 
     # ------------------------------------------------------------ 定时推送
     async def _daily_loop(self) -> None:
@@ -178,7 +224,7 @@ class NoticePlugin(Star):
                 raise
             except Exception as e:              # noqa: BLE001
                 logger.error("[notice] 定时推送异常: %s", e)
-                await asyncio.sleep(300)        # 出错后等 5 分钟再来，避免刷屏
+                await asyncio.sleep(300)
 
     def _next_run(self) -> datetime.datetime:
         hh, mm = (int(x) for x in self._push_time().split(":"))
@@ -196,13 +242,26 @@ class NoticePlugin(Star):
         now = datetime.datetime.now()
         hh, mm = (int(x) for x in self._push_time().split(":"))
         if (now.hour, now.minute) < (hh, mm):
-            return                              # 还没到点，等定时任务
+            return                              # 还没到点
         await self._push_daily()
 
     async def _push_daily(self) -> None:
+        """只往「已绑定的那一个群」发；任何条件不满足就一个字都不发。"""
         umo = (self.config.get("push_umo") or "").strip() or await self._kv_get("push_umo")
         if not umo:
-            logger.warning("[notice] 未绑定推送目标，跳过（在群里发 /绑定推送）")
+            logger.warning("[notice] 未绑定推送群，跳过（在目标群发 /绑定推送）")
+            return
+        if "GroupMessage" not in umo:            # 防御：非群会话绝不推送
+            logger.warning("[notice] umo 不是群会话，拒绝推送：%s", umo)
+            return
+
+        allowed = await self._allowed_groups()
+        gid = str(self.config.get("push_group") or await self._kv_get("push_group"))
+        if allowed and not gid:
+            logger.warning("[notice] 配置了授权群但未绑定推送群，拒绝推送")
+            return
+        if allowed and gid and gid not in allowed:
+            logger.warning("[notice] 推送群 %s 不在授权名单 %s 内，拒绝推送", gid, allowed)
             return
 
         data = await self._get("/api/digest", limit=12)
