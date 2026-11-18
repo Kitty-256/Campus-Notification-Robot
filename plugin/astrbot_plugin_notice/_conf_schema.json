@@ -1,8 +1,8 @@
 {
   "svc_base": {
     "type": "string",
-    "description": "notice-svc 地址（同 docker 网络时用容器名）",
-    "default": "http://notice-svc:8000"
+    "description": "notice-svc 地址（本机部署用 127.0.0.1；与 Docker 同网络时用 http://notice-svc:8000）",
+    "default": "http://127.0.0.1:8000"
   },
   "push_time": {
     "type": "string",
