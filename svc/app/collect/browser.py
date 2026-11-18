@@ -52,13 +52,17 @@ def collect(src: dict) -> list[dict]:
             page.goto(url, wait_until="domcontentloaded", timeout=45000)
             page.wait_for_timeout(3000)
 
-        # 不依赖具体 CSS 选择器：把页面上所有链接取回来，再用启发式筛标题
+        # 不依赖具体 CSS 选择器：取所有链接，标题优先取卡片里的标题元素。
+        # 信息学院这类站点的 <a> 包住整张卡片（日期 + 标题 + 摘要），
+        # 直接读 innerText 会超过 80 字被过滤，所以先找 h1~h6 / .title。
         anchors = page.eval_on_selector_all(
-            "a",
-            """els => els.map(e => ({
-                   href: e.href || '',
-                   text: (e.getAttribute('title') || e.innerText || '').trim()
-               }))""",
+            "a[href]",
+            """els => els.map(e => {
+                   const h = e.querySelector('h1,h2,h3,h4,h5,h6,.title');
+                   const raw = h ? h.innerText
+                                 : (e.getAttribute('title') || e.innerText || '');
+                   return { href: e.href || '', text: (raw || '').trim() };
+               })""",
         )
         browser.close()
 
@@ -77,5 +81,19 @@ def collect(src: dict) -> list[dict]:
         items.append({"source": src["id"], "url": href, "title": text})
         if len(items) >= limit:
             break
+
+    # 详情页大多是服务端渲染的（WebPlus），用普通 httpx 抓正文即可，
+    # 这样浏览器只负责「拿到列表」，正文与截止时间走轻量路径。
+    if src.get("fetch_detail", True) and items:
+        import time
+
+        from .generic import fetch_detail
+        n = int(src.get("detail_limit", 8))
+        for it in items[:n]:
+            try:
+                it["content"] = fetch_detail(it["url"], src.get("content_selector"))
+            except Exception:                          # noqa: BLE001
+                it["content"] = ""
+            time.sleep(settings.crawl_delay_min)
 
     return items
