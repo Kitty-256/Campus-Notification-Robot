@@ -3,10 +3,22 @@ __pycache__/
 *.pyo
 .venv/
 venv/
+
+# 运行期数据（数据库、日志、备份），绝不进仓库
 data/
+logs/
+*.log
 *.db
 *.db-wal
 *.db-shm
+
+# 本地配置（含令牌与密钥）
 .env
+.env.local
+
+# 编辑器与系统
 .pytest_cache/
+.idea/
+.vscode/
 .DS_Store
+Thumbs.db
