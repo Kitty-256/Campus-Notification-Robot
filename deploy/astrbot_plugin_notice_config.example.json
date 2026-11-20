@@ -1,0 +1,11 @@
+{
+  "svc_base": "http://127.0.0.1:8000",
+  "allowed_groups": "",
+  "realtime": true,
+  "watch_interval_min": 3,
+  "daily_summary": false,
+  "push_time": "08:00",
+  "push_umo": "",
+  "push_group": "",
+  "bot_uin": ""
+}

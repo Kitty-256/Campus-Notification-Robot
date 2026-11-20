@@ -6,6 +6,8 @@
 - 业务层：**notice-svc**（FastAPI + SQLite），负责采集 / 解析 / 去重 / 摘要 / 排序 / 日报
 - 设计目标：4 个信息源、4 条指令、无 Web 后台（MVP），一切复杂功能推迟到 V2
 
+> **机器人怎么接起来**（AstrBot + SnowLuma + 插件）：见 [docs/deployment.md](docs/deployment.md)
+
 > **第一次上传到 GitHub / 队友怎么拉代码**：见 [docs/首次上传GitHub.md](docs/首次上传GitHub.md)（小白版，20 分钟）
 
 详细施工步骤见 `项目文档/校园通知日报机器人_实施手册_v2.0_MVP版.docx`。
