@@ -36,6 +36,16 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 $after = git rev-parse --short HEAD
+
+# 写入「部署事实」：/healthz 与群里 /关于 都会显示它
+$build = @{
+    version  = "1.0.0"
+    commit   = $after
+    built_at = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+} | ConvertTo-Json
+[System.IO.File]::WriteAllText((Join-Path $root "svc\app\_build.json"),
+    $build, (New-Object System.Text.UTF8Encoding($false)))
+Write-Host "部署版本已写入 svc\app\_build.json（commit $after）" -ForegroundColor Green
 if ($before -eq $after) {
     Write-Host "已经是最新（$after），没有新提交。" -ForegroundColor Yellow
 } else {

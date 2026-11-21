@@ -10,7 +10,7 @@ import logging
 from fastapi import FastAPI, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from . import db, pipeline
+from . import db, pipeline, version
 from .jobs.crawl import crawl_all
 from .settings import BASE_DIR, settings
 
@@ -85,7 +85,9 @@ async def _startup() -> None:
 # ---------------------------------------------------------------- 基础
 @app.get("/healthz")
 def healthz() -> dict:
-    return {"ok": True, "ts": db.now_str(), "sources": len(_sources_safe())}
+    """健康检查 + 部署版本：群里 /关于 会读这里，用来确认「机器上跑的是哪一版」。"""
+    return {"ok": True, "ts": db.now_str(), "sources": len(_sources_safe()),
+            **version.info()}
 
 
 def _sources_safe() -> list:

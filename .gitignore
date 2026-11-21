@@ -12,6 +12,9 @@ logs/
 *.db-wal
 *.db-shm
 
+# 部署时生成的构建信息（属于部署事实，不进版本库）
+svc/app/_build.json
+
 # 本地配置（含令牌与密钥）
 .env
 .env.local

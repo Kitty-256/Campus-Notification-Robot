@@ -21,9 +21,10 @@ from astrbot.api.star import Context, Star, register
 
 ZWSP = "\u200b"          # aiocqhttp 发送 plain 时会 strip 首尾空白，用它护住排版
 DEFAULT_SVC = "http://127.0.0.1:8000"
+PLUGIN_VERSION = "1.3.0"
 
 
-@register("astrbot_plugin_notice", "xmu-ai-team", "校园通知日报", "1.2.0")
+@register("astrbot_plugin_notice", "xmu-ai-team", "校园通知日报", "1.3.0")
 class NoticePlugin(Star):
     def __init__(self, context: Context, config: dict | None = None):
         super().__init__(context)
@@ -209,8 +210,29 @@ class NoticePlugin(Star):
             "/搜索 关键词 —— 查历史通知\n"
             "/订阅 竞赛 —— 订阅某类通知\n"
             "/绑定推送 —— 把本群设为日报推送目标（每个机器人只允许一个群）\n"
+            "/关于 —— 查看机器人当前运行版本\n"
             "摘要由模型生成，请以原文为准。"
         )
+
+    @filter.command("关于")
+    async def cmd_about(self, event: AstrMessageEvent):
+        """显示「机器上实际跑的是哪一版」——用来确认部署有没有真的生效。"""
+        if not await self._authorized(event, allow_bootstrap=True):
+            return
+        lines = [f"🤖 校园通知日报 插件 v{PLUGIN_VERSION}"]
+        try:
+            h = await self._get("/healthz")
+            commit = h.get("commit") or "未记录"
+            lines.append(f"后端 {h.get('version', '?')}｜commit {commit}")
+            if h.get("built_at"):
+                lines.append(f"部署于 {h['built_at']}")
+            lines.append(f"信息源 {h.get('sources', '?')} 个")
+        except Exception as e:                             # noqa: BLE001
+            lines.append(f"后端连不上（{type(e).__name__}）")
+        gid = await self._kv_get("push_group") or "未绑定"
+        lines.append(f"推送群 {gid}｜实时 {'开' if self._realtime() else '关'}（每{self._watch_interval()}分钟）")
+        lines.append(f"日报 {'开' if self._daily_summary() else '关'}（{self._push_time()}）")
+        yield event.plain_result("\n".join(lines))
 
     @filter.command("绑定推送")
     async def cmd_bind(self, event: AstrMessageEvent):
